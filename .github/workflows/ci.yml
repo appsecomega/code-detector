@@ -1,0 +1,22 @@
+# CI — valida cada push/PR (build + vet + testes).
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["v*.*.*"]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+      - run: gofmt -l .
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build -o code-detector .

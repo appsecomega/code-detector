@@ -1,0 +1,43 @@
+# GoReleaser — gera a GitHub Release com binários sempre que uma tag v*.*.* é enviada.
+# Como publicar: git tag v1.0.0 && git push origin v1.0.0
+version: 2
+
+project_name: code-detector
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: code-detector
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  draft: false
+  prerelease: auto

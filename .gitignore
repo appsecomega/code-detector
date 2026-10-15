@@ -1,0 +1,15 @@
+# Binário local e saída do GoReleaser
+code-detector
+code-detector.exe
+dist/
+
+# Go
+*.test
+*.out
+/vendor/
+
+# Sistema / editores
+.DS_Store
+.idea/
+.vscode/
+*.swp
