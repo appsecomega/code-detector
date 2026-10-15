@@ -1,4 +1,4 @@
-# code-detector — atalhos de build/test/release local
+# code-detector — local build/test/release shortcuts
 BINARY := code-detector
 GO := go
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -18,7 +18,7 @@ vet:
 fmt:
 	gofmt -l .
 
-# Release local de teste (gera dist/ sem publicar; exige goreleaser instalado)
+# Local test release (builds dist/ without publishing; requires goreleaser)
 snapshot:
 	goreleaser release --snapshot --clean
 

@@ -1,10 +1,10 @@
-// Package main — detector agnóstico + gate de esteira Veracode.
+// Package main — language-agnostic detector + Veracode pipeline gate.
 //
-// Equivalente Go do code_detector.py:
+// Go equivalent of code_detector.py:
 //
-//	has_code (agnóstico, qualquer linguagem) x veracode_scannable (gate SAST).
+//	has_code (agnostic, any language) vs veracode_scannable (SAST gate).
 //
-// Stdlib-only, sem dependências externas.
+// Stdlib-only, no external dependencies.
 package main
 
 import (
@@ -25,7 +25,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// 1. Mapa extensão -> linguagem (agnóstico, amplo)
+// 1. Extension -> language map (agnostic, broad)
 // ---------------------------------------------------------------------------
 
 var extToLang = map[string]string{
@@ -63,7 +63,7 @@ var extToLang = map[string]string{
 }
 
 // ---------------------------------------------------------------------------
-// 1b. Critério Veracode SAST — linguagens que viram módulo
+// 1b. Veracode SAST criteria — languages that produce a module
 // ---------------------------------------------------------------------------
 
 var veracodeSupportedLangs = map[string]bool{
@@ -91,7 +91,7 @@ var veracodeArtifactExts = map[string]bool{
 }
 
 // ---------------------------------------------------------------------------
-// 2. Manifestos / SBOM / config
+// 2. Manifests / SBOM / config
 // ---------------------------------------------------------------------------
 
 var manifestFilenames = map[string]bool{
@@ -134,7 +134,7 @@ var sbomContentMarkers = []string{
 }
 
 // ---------------------------------------------------------------------------
-// 3. Ignorados
+// 3. Ignored
 // ---------------------------------------------------------------------------
 
 var ignoreDirs = map[string]bool{
@@ -174,10 +174,10 @@ var slashCommentLangs = map[string]bool{
 }
 
 // ---------------------------------------------------------------------------
-// Estruturas
+// Structures
 // ---------------------------------------------------------------------------
 
-// CodeFile descreve um arquivo de código com conteúdo real.
+// CodeFile describes a source file with real content.
 type CodeFile struct {
 	Path              string `json:"path"`
 	Language          string `json:"language"`
@@ -185,7 +185,7 @@ type CodeFile struct {
 	VeracodeSupported bool   `json:"veracode_supported"`
 }
 
-// Analysis é o resultado da varredura, pronto p/ a esteira decidir scan x skip.
+// Analysis is the scan result, ready for the pipeline to decide scan vs skip.
 type Analysis struct {
 	Root              string         `json:"root"`
 	HasCode           bool           `json:"has_code"`
@@ -237,7 +237,7 @@ func looksLikeSbomName(nameLower string) bool {
 	return anyGlobMatch(sbomGlobs, nameLower)
 }
 
-// IsSbomFile detecta SBOM por nome típico OU conteúdo CycloneDX/SPDX.
+// IsSbomFile detects an SBOM by typical name OR CycloneDX/SPDX content.
 func IsSbomFile(fp string) bool {
 	if looksLikeSbomName(strings.ToLower(filepath.Base(fp))) {
 		return true
@@ -272,7 +272,7 @@ func IsSbomFile(fp string) bool {
 	return false
 }
 
-// LangForFile mapeia o arquivo p/ linguagem pela extensão (.blade.php composto incluído).
+// LangForFile maps a file to its language by extension (compound .blade.php included).
 func LangForFile(fp string) (string, bool) {
 	nl := strings.ToLower(filepath.Base(fp))
 	if strings.HasSuffix(nl, ".blade.php") {
@@ -313,7 +313,7 @@ func shebangLanguage(firstLine string) (string, bool) {
 	return "", false
 }
 
-// CountRealCodeLines conta linhas com conteúdo real (ignora vazias e só-comentário).
+// CountRealCodeLines counts lines with real content (skips blank and comment-only lines).
 func CountRealCodeLines(file, language string) int {
 	if strings.EqualFold(filepath.Ext(file), ".ipynb") {
 		return ipynbCodeLines(file)
@@ -326,7 +326,7 @@ func CountRealCodeLines(file, language string) int {
 	if err != nil {
 		return 0
 	}
-	// Normaliza \r\n -> \n e limita a 5000 linhas.
+	// Normalize \r\n -> \n and cap at 5000 lines.
 	txt := strings.ReplaceAll(string(data), "\r\n", "\n")
 	lines := strings.Split(txt, "\n")
 	if len(lines) > 5000 {
@@ -431,7 +431,7 @@ func iterCandidateFiles(root string) []string {
 			}
 			return nil
 		}
-		// Arquivo: pula symlink quebrado.
+		// File: skip broken symlinks.
 		if fi, err := os.Lstat(p); err == nil && fi.Mode()&os.ModeSymlink != 0 {
 			if _, err := os.Stat(p); err != nil {
 				return nil
@@ -484,25 +484,25 @@ func relOrAbs(root, fp string) string {
 }
 
 // ---------------------------------------------------------------------------
-// API principal
+// Main API
 // ---------------------------------------------------------------------------
 
-// AnalyzeProject varre pasta, arquivo único ou archive e classifica p/ a esteira.
+// AnalyzeProject scans a folder, single file or archive and classifies it for the pipeline.
 func AnalyzeProject(target string, minCodeLines int, useCloc bool) Analysis {
 	if minCodeLines < 1 {
 		minCodeLines = 1
 	}
 	fi, err := os.Stat(target)
 	if err != nil {
-		return Analysis{Root: target, HasCode: false, Category: "empty", Reason: "Caminho inexistente.", Action: "skip",
+		return Analysis{Root: target, HasCode: false, Category: "empty", Reason: "Path does not exist.", Action: "skip",
 			Languages: map[string]int{}, VeracodeLanguages: map[string]int{}}
 	}
 
-	// ---- Archive (.zip/.tar/.tgz) -> extrai p/ temp e analisa recursivamente ----
+	// ---- Archive (.zip/.tar/.tgz) -> extract to temp and analyze recursively ----
 	if !fi.IsDir() && isArchiveName(target) {
 		tmp, err := os.MkdirTemp("", "codedetect_")
 		if err != nil {
-			return Analysis{Root: target, Reason: "Falha ao criar temp: " + err.Error(), Action: "skip",
+			return Analysis{Root: target, Reason: "Failed to create temp dir: " + err.Error(), Action: "skip",
 				Languages: map[string]int{}, VeracodeLanguages: map[string]int{}}
 		}
 		defer os.RemoveAll(tmp)
@@ -515,20 +515,20 @@ func AnalyzeProject(target string, minCodeLines int, useCloc bool) Analysis {
 		return inner
 	}
 
-	// ---- Arquivo único (não-archive) ----
+	// ---- Single file (non-archive) ----
 	if !fi.IsDir() {
 		ext := strings.ToLower(filepath.Ext(target))
 		if veracodeArtifactExts[ext] {
 			return Analysis{Root: target, HasCode: false, VeracodeScannable: true,
 				Category: "artifact", ArtifactFiles: []string{filepath.Base(target)},
 				TotalFilesSeen: 1, Action: "scan",
-				Reason:    fmt.Sprintf("'%s' é artefato compilado escaneável pelo Veracode (sem fonte, mas gera módulo).", filepath.Base(target)),
+				Reason:    fmt.Sprintf("'%s' is a Veracode-scannable compiled artifact (no source, but produces a module).", filepath.Base(target)),
 				Languages: map[string]int{}, VeracodeLanguages: map[string]int{}}
 		}
 		if IsSbomFile(target) {
 			return Analysis{Root: target, HasCode: false, Category: "sbom-only",
 				SbomFiles: []string{filepath.Base(target)}, TotalFilesSeen: 1, Action: "skip",
-				Reason:    fmt.Sprintf("'%s' é SBOM (CycloneDX/SPDX) — não gera módulo SAST. Pule o upload.", filepath.Base(target)),
+				Reason:    fmt.Sprintf("'%s' is an SBOM (CycloneDX/SPDX) — produces no SAST module. Skip the upload.", filepath.Base(target)),
 				Languages: map[string]int{}, VeracodeLanguages: map[string]int{}}
 		}
 		lang, ok := LangForFile(target)
@@ -543,11 +543,11 @@ func AnalyzeProject(target string, minCodeLines int, useCloc bool) Analysis {
 			if isManifest(strings.ToLower(filepath.Base(target))) {
 				return Analysis{Root: target, Category: "manifest-only",
 					ManifestFiles: []string{filepath.Base(target)}, TotalFilesSeen: 1, Action: "skip",
-					Reason:    fmt.Sprintf("'%s' é manifesto/config — sem código escaneável.", filepath.Base(target)),
+					Reason:    fmt.Sprintf("'%s' is a manifest/config file — no scannable code.", filepath.Base(target)),
 					Languages: map[string]int{}, VeracodeLanguages: map[string]int{}}
 			}
 			return Analysis{Root: target, Category: "non-scannable-only", TotalFilesSeen: 1, Action: "skip",
-				Reason:    fmt.Sprintf("'%s' não é código nem artefato (provável doc/config/SBOM).", filepath.Base(target)),
+				Reason:    fmt.Sprintf("'%s' is neither code nor artifact (likely doc/config/SBOM).", filepath.Base(target)),
 				Languages: map[string]int{}, VeracodeLanguages: map[string]int{}}
 		}
 		n := CountRealCodeLines(target, lang)
@@ -571,12 +571,12 @@ func AnalyzeProject(target string, minCodeLines int, useCloc bool) Analysis {
 			a.VeracodeLanguages[lang] = 1
 		}
 		if has {
-			a.Reason = fmt.Sprintf("%s: %d linha(s) real(is) em '%s'", lang, n, filepath.Base(target))
+			a.Reason = fmt.Sprintf("%s: %d real line(s) in '%s'", lang, n, filepath.Base(target))
 			if !vsupp {
-				a.Reason += " (linguagem fora do SAST Veracode)."
+				a.Reason += " (language outside Veracode SAST)."
 			}
 		} else {
-			a.Reason = fmt.Sprintf("'%s' é %s mas vazio/só comentários.", filepath.Base(target), lang)
+			a.Reason = fmt.Sprintf("'%s' is %s but empty/comment-only.", filepath.Base(target), lang)
 		}
 		if vscan {
 			a.Action = "scan"
@@ -586,7 +586,7 @@ func AnalyzeProject(target string, minCodeLines int, useCloc bool) Analysis {
 		return a
 	}
 
-	// ---- Diretório ----
+	// ---- Directory ----
 	root := target
 	var codeFiles []CodeFile
 	var manifests, sboms, artifacts []string
@@ -609,7 +609,7 @@ func AnalyzeProject(target string, minCodeLines int, useCloc bool) Analysis {
 		if ext == ".zip" {
 			if st, err := os.Stat(fp); err == nil && st.Size() < 500*1024*1024 {
 				if zipHasScannableInside(fp) {
-					artifacts = append(artifacts, relOrAbs(root, fp)+" (container com módulo)")
+					artifacts = append(artifacts, relOrAbs(root, fp)+" (module container)")
 					continue
 				}
 				continue
@@ -672,7 +672,7 @@ func AnalyzeProject(target string, minCodeLines int, useCloc bool) Analysis {
 	switch {
 	case total == 0:
 		category = "empty"
-		reason = "Diretório vazio ou só com pastas ignoradas (terceiros/build/.git)."
+		reason = "Empty directory or only ignored folders (third-party/build/.git)."
 	case vscan:
 		if len(vlangCount) > 0 {
 			category = "code"
@@ -681,43 +681,43 @@ func AnalyzeProject(target string, minCodeLines int, useCloc bool) Analysis {
 		}
 		var parts []string
 		if len(vlangCount) > 0 {
-			parts = append(parts, fmt.Sprintf("%d arquivo(s) %s", len(codeFiles), topLangs(vlangCount, 3)))
+			parts = append(parts, fmt.Sprintf("%d file(s) %s", len(codeFiles), topLangs(vlangCount, 3)))
 		}
 		if len(artifacts) > 0 {
 			ex := artifacts
 			if len(ex) > 3 {
 				ex = ex[:3]
 			}
-			parts = append(parts, fmt.Sprintf("%d artefato(s): %s", len(artifacts), strings.Join(ex, ", ")))
+			parts = append(parts, fmt.Sprintf("%d artifact(s): %s", len(artifacts), strings.Join(ex, ", ")))
 		}
-		reason = "Escaneável pelo Veracode: " + strings.Join(parts, "; ") + "."
+		reason = "Scannable by Veracode: " + strings.Join(parts, "; ") + "."
 	case has:
 		category = "code-unsupported-by-veracode"
-		reason = fmt.Sprintf("Tem código, mas em linguagem que o SAST Veracode não transforma em módulo (%s). Upload SAST falharia com 'No modules found' — pule ou use SCA.", topLangs(langCount, 3))
+		reason = fmt.Sprintf("Has code, but in a language Veracode SAST doesn't turn into a module (%s). SAST upload would fail with 'No modules found' — skip or use SCA.", topLangs(langCount, 3))
 	case len(sboms) > 0 && len(manifests) == 0:
 		category = "sbom-only"
 		ex := sboms
 		if len(ex) > 3 {
 			ex = ex[:3]
 		}
-		reason = fmt.Sprintf("Só SBOM (%d: %s) — sem fonte nem artefato. SAST sem módulo; use SCA ou pule. Total varrido: %d.", len(sboms), strings.Join(ex, ", "), total)
+		reason = fmt.Sprintf("SBOM only (%d: %s) — no source or artifact. SAST has no module; use SCA or skip. Total scanned: %d.", len(sboms), strings.Join(ex, ", "), total)
 	case len(sboms) > 0:
 		category = "sbom-only"
 		ex := sboms
 		if len(ex) > 3 {
 			ex = ex[:3]
 		}
-		reason = fmt.Sprintf("SBOM + manifesto/config, sem código (%d SBOM: %s; %d manifesto(s)). Total varrido: %d.", len(sboms), strings.Join(ex, ", "), len(manifests), total)
+		reason = fmt.Sprintf("SBOM + manifest/config, no code (%d SBOM: %s; %d manifest(s)). Total scanned: %d.", len(sboms), strings.Join(ex, ", "), len(manifests), total)
 	case len(manifests) > 0:
 		category = "manifest-only"
 		ex := manifests
 		if len(ex) > 5 {
 			ex = ex[:5]
 		}
-		reason = fmt.Sprintf("Só manifesto/config/docs (%d: %s) — nenhum código com conteúdo real. Total varrido: %d.", len(manifests), strings.Join(ex, ", "), total)
+		reason = fmt.Sprintf("Manifest/config/docs only (%d: %s) — no files with real code content. Total scanned: %d.", len(manifests), strings.Join(ex, ", "), total)
 	default:
 		category = "non-scannable-only"
-		reason = fmt.Sprintf("Nenhum código/artefato/SBOM reconhecido. Total varrido: %d (docs/config/assets ou vazios).", total)
+		reason = fmt.Sprintf("No recognized code/artifact/SBOM. Total scanned: %d (docs/config/assets or empty files).", total)
 	}
 
 	if useCloc {
@@ -781,28 +781,28 @@ func topLangs(m map[string]int, n int) string {
 	return strings.Join(parts, ", ")
 }
 
-// HasScannableCode retorna true se há código (qualquer linguagem).
+// HasScannableCode returns true when there is code (any language).
 func HasScannableCode(target string, minCodeLines int) bool {
 	return AnalyzeProject(target, minCodeLines, false).HasCode
 }
 
-// IsVeracodeScannable retorna true se o SAST Veracode extrai módulo; false = pular.
+// IsVeracodeScannable returns true when Veracode SAST can extract a module; false = skip.
 func IsVeracodeScannable(target string, minCodeLines int) bool {
 	return AnalyzeProject(target, minCodeLines, false).VeracodeScannable
 }
 
-// ShouldSkipVeracodeScan retorna (skip, motivo) p/ logar sem falhar o build.
+// ShouldSkipVeracodeScan returns (skip, reason) so the pipeline can log without failing the build.
 func ShouldSkipVeracodeScan(target string, minCodeLines int) (bool, string) {
 	a := AnalyzeProject(target, minCodeLines, false)
 	return !a.VeracodeScannable, a.Reason
 }
 
-// DetectLanguages retorna {linguagem: nº_arquivos} (agnóstico).
+// DetectLanguages returns {language: file_count} (agnostic).
 func DetectLanguages(target string) map[string]int {
 	return AnalyzeProject(target, minCodeLinesDflt, false).Languages
 }
 
-// DetectVeracodeLanguages retorna {linguagem suportada: nº_arquivos}.
+// DetectVeracodeLanguages returns {supported_language: file_count}.
 func DetectVeracodeLanguages(target string) map[string]int {
 	return AnalyzeProject(target, minCodeLinesDflt, false).VeracodeLanguages
 }
@@ -827,7 +827,7 @@ func extractArchive(archive, dest string) error {
 		strings.HasSuffix(nl, ".tar") || strings.HasSuffix(nl, ".tar.bz2") {
 		return extractTar(archive, dest)
 	}
-	return fmt.Errorf("archive não suportado: %s", archive)
+	return fmt.Errorf("unsupported archive: %s", archive)
 }
 
 func extractZip(archive, dest string) error {
@@ -837,7 +837,7 @@ func extractZip(archive, dest string) error {
 	}
 	defer z.Close()
 	for _, f := range z.File {
-		// Proteção contra ZipSlip.
+		// ZipSlip protection.
 		clean := filepath.Clean(f.Name)
 		if strings.Contains(clean, "..") {
 			continue
@@ -912,7 +912,7 @@ func extractTar(archive, dest string) error {
 	return nil
 }
 
-// clocSummary anexa resumo do cloc se instalado (opcional, nunca obrigatório).
+// clocSummary appends a cloc summary when installed (optional, never required).
 func clocSummary(root string) string {
 	cloc, err := exec.LookPath("cloc")
 	if err != nil {
@@ -936,7 +936,7 @@ func clocSummary(root string) string {
 		if strings.HasPrefix(lines[i], "SUM") {
 			parts := strings.Split(lines[i], ",")
 			if len(parts) >= 5 {
-				return fmt.Sprintf("%s arquivo(s), %s linhas de código (SUM)", parts[4], parts[3])
+				return fmt.Sprintf("%s file(s), %s code lines (SUM)", parts[4], parts[3])
 			}
 			return lines[i]
 		}

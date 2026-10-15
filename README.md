@@ -1,100 +1,100 @@
 # code-detector (Go)
 
-Gate de esteira Veracode: tem código/artefato escaneável **antes** de empacotar e fazer upload?
+Pre-packaging Veracode gate: does this repo/package hold scannable code or artifacts **before** you bundle and upload it?
 
-- `true` = tem módulo escaneável → faça o upload SAST
-- `false` = só SBOM/manifesto/docs (ou só linguagem fora do SAST) → **pule sem erro** em vez de receber `No modules found`
+- `true` = scannable module found → upload to SAST
+- `false` = SBOM/manifest/docs only (or a language outside SAST) → **skip without error** instead of getting `No modules found`
 
-Binário único em Go (stdlib-only, sem dependências), ideal para CI.
+Single Go binary (stdlib-only, zero dependencies), ideal for CI.
 
-## Instalação (via Release)
+## Install (via Release)
 
-Baixe o binário pronto na página **Releases** do repositório
-(`code-detector_<versão>_<SO>_<arch>.tar.gz` + `checksums.txt`):
+Download the ready-made binary from the repository **Releases** page
+(`code-detector_<version>_<OS>_<arch>.tar.gz` + `checksums.txt`):
 
 ```bash
-# Exemplo Linux amd64, versão v1.0.0:
+# Example: Linux amd64, v1.0.0:
 curl -sL -o code-detector.tar.gz \
   https://github.com/appsecomega/code-detector/releases/download/v1.0.0/code-detector_v1.0.0_Linux_x86_64.tar.gz
 tar -xzf code-detector.tar.gz
 ./code-detector --version
 ```
 
-Ou compile localmente:
+Or build locally:
 
 ```bash
 go build -o code-detector .
-# ou: make build
+# or: make build
 ```
 
-## Uso (verificação pré-empacotamento)
+## Usage (pre-packaging check)
 
 ```bash
-# 1) Checa o repo/fonte ANTES de zipar:
-./code-detector ./meu-repo -q --mode veracode
-# true  -> pode empacotar + subir
-# false -> pule o SAST (só SBOM/manifesto)
+# 1) Check the source repo BEFORE zipping:
+./code-detector ./my-repo -q --mode veracode
+# true  -> safe to package + upload
+# false -> skip SAST (SBOM/manifest only)
 
-# 2) JSON p/ log da esteira:
-./code-detector ./meu-repo --json
+# 2) JSON for pipeline logs:
+./code-detector ./my-repo --json
 
-# 3) Pipeline com exit code (0=scan, 2=skip):
-./code-detector ./meu-repo --mode veracode --fail-on-no-code -q
+# 3) Pipeline with exit code (0=scan, 2=skip):
+./code-detector ./my-repo --mode veracode --fail-on-no-code -q
 
-# 4) Checa o pacote já gerado:
+# 4) Check the already-built package:
 ./code-detector app.zip --mode veracode
 ```
 
-Exemplo shell:
+Shell example:
 
 ```bash
 if [ "$(./code-detector ./src -q --mode veracode)" = "true" ]; then
   zip -r app.zip src/
-  # upload veracode...
+  # veracode upload...
 else
-  echo "sem módulo escaneável — pulando SAST sem falhar o build."
+  echo "no scannable module — skipping SAST without failing the build."
 fi
 ```
 
-## Categorias
+## Categories
 
-| categoria | `veracode_scannable` | ação |
+| category | `veracode_scannable` | action |
 |---|---|---|
 | `code` | ✅ | `scan` |
 | `artifact` (`.jar/.war/.ear/.dll/.exe/.apk/.aar`) | ✅ | `scan` |
 | `sbom-only` | ❌ | `skip` |
 | `manifest-only` | ❌ | `skip` |
-| `code-unsupported-by-veracode` (ex.: só `.sh/.sql/.tf`) | ❌ | `skip` |
+| `code-unsupported-by-veracode` (e.g. only `.sh/.sql/.tf`) | ❌ | `skip` |
 | `non-scannable-only` / `empty` | ❌ | `skip` |
 
-## Desenvolvimento
+## Development
 
 ```bash
 go test ./...
 go vet ./...
 gofmt -l .
-# ou: make test
+# or: make test
 ```
 
-## Publicando uma nova versão (release automática)
+## Publishing a new version (automatic release)
 
-O workflow `.github/workflows/release.yml` publica a Release **sozinho**
-sempre que uma tag `v*.*.*` é enviada. Os binários
-(linux/darwin/windows × amd64/arm64) + `checksums.txt` vão anexados:
+The `.github/workflows/release.yml` workflow publishes the Release **on its own**
+whenever a `v*.*.*` tag is pushed. Binaries
+(linux/darwin/windows × amd64/arm64) + `checksums.txt` get attached:
 
 ```bash
-# 1) Suba o código na main
+# 1) Push the code to main
 git push origin main
 
-# 2) Crie e envie a tag da nova versão
+# 2) Tag and push the new version
 git tag v1.1.0
 git push origin v1.1.0
 
-# 3) Aguarde o workflow "release" em Actions — a Release aparece pronta p/ baixar.
+# 3) Wait for the "release" workflow under Actions — the Release shows up ready to download.
 ```
 
-Para testar o empacotamento localmente sem publicar (exige `goreleaser` instalado):
+To test the packaging locally without publishing (requires `goreleaser`):
 
 ```bash
-make snapshot   # gera dist/ local
+make snapshot   # builds local dist/
 ```

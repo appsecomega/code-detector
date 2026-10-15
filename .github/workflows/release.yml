@@ -1,5 +1,5 @@
-# Release automática — ao enviar tag v*.*.* (ex.: v1.0.0),
-# publica a GitHub Release com os binários (linux/darwin/windows, amd64/arm64).
+# Automatic release — when a v*.*.* tag is pushed (e.g. v1.0.0),
+# publishes the GitHub Release with binaries (linux/darwin/windows, amd64/arm64).
 name: release
 
 on:

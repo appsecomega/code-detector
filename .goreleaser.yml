@@ -1,5 +1,5 @@
-# GoReleaser — gera a GitHub Release com binários sempre que uma tag v*.*.* é enviada.
-# Como publicar: git tag v1.0.0 && git push origin v1.0.0
+# GoReleaser — builds the GitHub Release with binaries every time a v*.*.* tag is pushed.
+# How to publish: git tag v1.0.0 && git push origin v1.0.0
 version: 2
 
 project_name: code-detector

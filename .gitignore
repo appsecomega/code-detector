@@ -1,4 +1,4 @@
-# Binário local e saída do GoReleaser
+# Local binary and GoReleaser output
 code-detector
 code-detector.exe
 dist/
@@ -8,7 +8,7 @@ dist/
 *.out
 /vendor/
 
-# Sistema / editores
+# System / editors
 .DS_Store
 .idea/
 .vscode/

@@ -19,10 +19,10 @@ func TestManifestOnly(t *testing.T) {
 	writeFile(t, dir, "README.md", "# readme")
 	a := AnalyzeProject(dir, 1, false)
 	if a.HasCode || a.VeracodeScannable {
-		t.Fatalf("esperava sem código, obteve %+v", a)
+		t.Fatalf("expected no code, got %+v", a)
 	}
 	if a.Category != "manifest-only" {
-		t.Fatalf("categoria esperada manifest-only, obteve %q", a.Category)
+		t.Fatalf("expected category manifest-only, got %q", a.Category)
 	}
 }
 
@@ -32,10 +32,10 @@ func TestWithCode(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"name":"y"}`)
 	a := AnalyzeProject(dir, 1, false)
 	if !a.HasCode || !a.VeracodeScannable {
-		t.Fatalf("esperava código escaneável, obteve %+v", a)
+		t.Fatalf("expected scannable code, got %+v", a)
 	}
 	if a.Category != "code" {
-		t.Fatalf("categoria esperada code, obteve %q", a.Category)
+		t.Fatalf("expected category code, got %q", a.Category)
 	}
 }
 
@@ -45,10 +45,10 @@ func TestSbomOnly(t *testing.T) {
 	writeFile(t, dir, "README.md", "# doc")
 	a := AnalyzeProject(dir, 1, false)
 	if a.HasCode || a.VeracodeScannable {
-		t.Fatalf("esperava sbom-only sem código, obteve %+v", a)
+		t.Fatalf("expected sbom-only without code, got %+v", a)
 	}
 	if a.Category != "sbom-only" {
-		t.Fatalf("categoria esperada sbom-only, obteve %q", a.Category)
+		t.Fatalf("expected category sbom-only, got %q", a.Category)
 	}
 }
 
@@ -57,13 +57,13 @@ func TestShellOnlyVeracodeGate(t *testing.T) {
 	writeFile(t, dir, "deploy.sh", "#!/bin/bash\necho oi\n")
 	a := AnalyzeProject(dir, 1, false)
 	if !a.HasCode {
-		t.Fatalf("shell conta como código agnóstico: %+v", a)
+		t.Fatalf("shell counts as agnostic code: %+v", a)
 	}
 	if a.VeracodeScannable {
-		t.Fatalf("shell sozinho não deveria ser veracode-scannable: %+v", a)
+		t.Fatalf("shell alone should not be veracode-scannable: %+v", a)
 	}
 	if a.Category != "code-unsupported-by-veracode" {
-		t.Fatalf("categoria esperada code-unsupported-by-veracode, obteve %q", a.Category)
+		t.Fatalf("expected category code-unsupported-by-veracode, got %q", a.Category)
 	}
 }
 
@@ -72,6 +72,6 @@ func TestArtifact(t *testing.T) {
 	writeFile(t, dir, "app.jar", "fake-jar")
 	a := AnalyzeProject(dir, 1, false)
 	if !a.VeracodeScannable {
-		t.Fatalf("jar deveria ser escaneável: %+v", a)
+		t.Fatalf("jar should be scannable: %+v", a)
 	}
 }

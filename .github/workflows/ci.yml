@@ -1,4 +1,4 @@
-# CI — valida cada push/PR (build + vet + testes).
+# CI — validates every push/PR (build + vet + tests).
 name: ci
 
 on:

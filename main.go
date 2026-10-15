@@ -1,13 +1,13 @@
-// Command code-detector — gate de esteira Veracode.
+// Command code-detector — Veracode pipeline gate.
 //
-//	true  = tem módulo escaneável (faça o upload)
-//	false = só SBOM/manifesto/docs (pule o SAST sem erro)
+//	true  = scannable module found (upload it)
+//	false = SBOM/manifest/docs only (skip SAST without error)
 //
-// Exit codes (p/ pipeline):
+// Exit codes (for pipelines):
 //
-//	0 = escaneável OU análise ok sem --fail-on-no-code
-//	2 = não escaneável + --fail-on-no-code (sinal de "skip")
-//	1 = erro de uso/IO
+//	0 = scannable OR analysis OK without --fail-on-no-code
+//	2 = not scannable + --fail-on-no-code ("skip" signal)
+//	1 = usage/IO error
 package main
 
 import (
@@ -17,8 +17,8 @@ import (
 	"strings"
 )
 
-// Preenchidas via ldflags no build/release (GoReleaser).
-// Desenvolvimento local mostra version=dev.
+// Set via ldflags at build/release time (GoReleaser).
+// Local development builds show version=dev.
 var (
 	version = "dev"
 	commit  = "none"
@@ -30,7 +30,7 @@ func main() {
 }
 
 func run(argv []string) int {
-	// Parse manual (aceita flags antes OU depois do path, estilo argparse):
+	// Manual parsing (accepts flags before OR after the path, argparse-style):
 	//   ./code-detector ./repo --mode veracode -q
 	//   ./code-detector --mode veracode -q ./repo
 	mode := "veracode"
@@ -57,7 +57,7 @@ func run(argv []string) int {
 		case "--mode", "-mode":
 			i++
 			if i >= len(argv) {
-				fmt.Fprintln(os.Stderr, "--mode exige veracode|generic")
+				fmt.Fprintln(os.Stderr, "--mode requires veracode|generic")
 				return 1
 			}
 			mode = argv[i]
@@ -68,12 +68,12 @@ func run(argv []string) int {
 		case "--min-lines", "-min-lines":
 			i++
 			if i >= len(argv) {
-				fmt.Fprintln(os.Stderr, "--min-lines exige um número")
+				fmt.Fprintln(os.Stderr, "--min-lines requires a number")
 				return 1
 			}
 			var n int
 			if _, err := fmt.Sscanf(argv[i], "%d", &n); err != nil || n < 1 {
-				fmt.Fprintln(os.Stderr, "--min-lines inválido")
+				fmt.Fprintln(os.Stderr, "invalid --min-lines")
 				return 1
 			}
 			minLines = n
@@ -84,14 +84,14 @@ func run(argv []string) int {
 		case "--fail-on-no-code", "-fail-on-no-code":
 			failOnNoCode = true
 		case "--help", "-help", "-h":
-			fmt.Fprintln(os.Stderr, "uso: code-detector [--mode veracode|generic] [--json] [-q] [--fail-on-no-code] [--min-lines N] [--version] <pasta|arquivo|archive>")
+			fmt.Fprintln(os.Stderr, "usage: code-detector [--mode veracode|generic] [--json] [-q] [--fail-on-no-code] [--min-lines N] [--version] <folder|file|archive>")
 			return 0
 		case "--version", "-version":
 			fmt.Printf("code-detector %s (commit %s, %s)\n", version, commit, date)
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				fmt.Fprintf(os.Stderr, "flag desconhecida: %s\n", a)
+				fmt.Fprintf(os.Stderr, "unknown flag: %s\n", a)
 				return 1
 			}
 			positional = append(positional, a)
@@ -99,17 +99,17 @@ func run(argv []string) int {
 		i++
 	}
 	if len(positional) != 1 {
-		fmt.Fprintln(os.Stderr, "uso: code-detector [--mode veracode|generic] [--json] [-q] [--fail-on-no-code] <pasta|arquivo|archive>")
+		fmt.Fprintln(os.Stderr, "usage: code-detector [--mode veracode|generic] [--json] [-q] [--fail-on-no-code] <folder|file|archive>")
 		return 1
 	}
 	if mode != "veracode" && mode != "generic" {
-		fmt.Fprintln(os.Stderr, "mode inválido: use veracode ou generic")
+		fmt.Fprintln(os.Stderr, "invalid mode: use veracode or generic")
 		return 1
 	}
 	target := positional[0]
 	if _, err := os.Stat(target); err != nil {
-		fmt.Fprintf(os.Stderr, "caminho inexistente: %s\n", target)
-		a := Analysis{Root: target, Category: "empty", Action: "skip", Reason: "Caminho inexistente.",
+		fmt.Fprintf(os.Stderr, "path does not exist: %s\n", target)
+		a := Analysis{Root: target, Category: "empty", Action: "skip", Reason: "Path does not exist.",
 			Languages: map[string]int{}, VeracodeLanguages: map[string]int{}}
 		emit(a, mode, false, jsonOut, quiet, verbose)
 		return exitFor(false, failOnNoCode)
@@ -148,25 +148,25 @@ func emit(a Analysis, mode string, result, jsonOut, quiet, verbose bool) {
 	}
 	fmt.Println(boolStr(result))
 	fmt.Printf("mode: %s | category: %s | action: %s\n", mode, a.Category, a.Action)
-	fmt.Printf("linguagens: %s\n", langsStr(a.Languages))
+	fmt.Printf("languages: %s\n", langsStr(a.Languages))
 	if len(a.SbomFiles) > 0 {
 		fmt.Printf("sbom: %v\n", head(a.SbomFiles, 5))
 	}
 	if len(a.ArtifactFiles) > 0 {
-		fmt.Printf("artefatos: %v\n", head(a.ArtifactFiles, 5))
+		fmt.Printf("artifacts: %v\n", head(a.ArtifactFiles, 5))
 	}
-	fmt.Printf("motivo: %s\n", a.Reason)
+	fmt.Printf("reason: %s\n", a.Reason)
 	if verbose && len(a.CodeFiles) > 0 {
-		fmt.Println("arquivos de código (top 20):")
+		fmt.Println("code files (top 20):")
 		for i, c := range a.CodeFiles {
 			if i >= 20 {
 				break
 			}
 			tag := ""
 			if !c.VeracodeSupported {
-				tag = " [fora do SAST]"
+				tag = " [outside SAST]"
 			}
-			fmt.Printf("  - %s [%s, %d linhas]%s\n", c.Path, c.Language, c.CodeLines, tag)
+			fmt.Printf("  - %s [%s, %d lines]%s\n", c.Path, c.Language, c.CodeLines, tag)
 		}
 	}
 }
